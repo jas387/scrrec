@@ -38,10 +38,16 @@ def set_record(path:str,filename:str, require_audio=True,no_audio_playback=False
     no_audio_playback='' if not no_audio_playback else '--no-audio-playback'
     no_video_playback='' if not no_video_playback else '--no-video-playback'
     no_control='' if not no_control else '--no-control'
+    video_codec=f'--video-codec="{video_codec}"' if video_codec!='' else ''
+    video_encoder=f'--video-codec="{video_encoder}"' if video_encoder!='' else ''
+    audio_codec=f'--audio-codec="{audio_codec}"' if audio_codec!='' else ''
+    audio_encoder=f'--audio-codec="{audio_encoder}"' if audio_encoder!='' else ''
+
+
 
     return f"scrcpy {require_audio} {no_audio_playback} {no_video_playback} {no_control} \
-    --video-codec={video_codec} --video-encoder='{video_encoder}' \
-    --audio-codec={audio_codec} --audio-encoder='{audio_encoder}' --record=\"{path}/{filename}\" "+' '.join(w)
+    {video_codec} {video_encoder} \
+    {audio_codec} {audio_encoder} --record=\"{path}/{filename}\" "+' '.join(w)
 
 def start_record(command: str):
     try:
