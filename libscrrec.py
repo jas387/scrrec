@@ -6,6 +6,18 @@ from datetime import datetime
 import time
 import subprocess
 
+SCRCPY_VERSION='2.3.1' # work with this version of scrcpy
+ADB_VERSION='1.0.41' # work with this version of adb
+
+def get_adb_version():
+    return os.popen('adb --version').read().splitlines()[0].split(' ')[-1]
+def get_scrcpy_version():
+    return os.popen('scrcpy --version').read().splitlines()[0].split(' ')[1]
+
+def check_versions():
+    # check if executable are in correct format
+    return get_adb_version()==ADB_VERSION and get_scrcpy_version()==SCRCPY_VERSION
+
 def get_current_activity_package_name():
     recents_activity = os.popen('adb shell "dumpsys activity recents"').read().splitlines()
     for line_index in range(len(recents_activity)):

@@ -1,0 +1,6 @@
+bt_update_info=update info
+ch_video=video
+ch_playback=playback
+ch_mic=mic
+lb_codec=codec
+lb_encoder=encoder

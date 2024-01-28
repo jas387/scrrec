@@ -39,7 +39,7 @@ parser.add_argument('--audio-source', default='output',choices=['output','mic'],
 parser.add_argument('--require-audio',action='store_false',help='requires audio to work')
 parser.add_argument('--no-audio-playback',action='store_true',help='disable audio on pc')
 
-parser.add_argument('--control',action='store_false',help='disable control')
+parser.add_argument('--control',action='store_false',help='enable control')
 
 
 args=parser.parse_args()
