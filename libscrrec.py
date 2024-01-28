@@ -88,3 +88,8 @@ def get_encoders(_dict,mode):
 def get_encoder(_dict,mode,codec):
     return _dict[mode][codec]
    
+def wait_for_package_activity(package: str):
+    current=get_current_activity_package_name()
+    while current!=package:
+        time.sleep(0.2)
+        current=get_current_activity_package_name()
