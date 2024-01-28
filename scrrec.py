@@ -27,14 +27,14 @@ parser.add_argument('--wait-for-device',action='store_true',help='wait for devic
 
 parser.add_argument('--list-encoders',action='store_true',help='list encoders you can use')
 
-parser.add_argument('--video-codec',default='',help='video codec')
-parser.add_argument('--video-encoder', default='',help='video encoder')
+parser.add_argument('--video-codec',default='h264',help='video codec')
+parser.add_argument('--video-encoder', default='OMX.MTK.VIDEO.ENCODER.AVC',help='video encoder')
 parser.add_argument('--video-playback',action='store_false',help='enable video on pc screen')
 parser.add_argument('--video-source',default='display',choices=['display','camera'],help='video source')
 
 
-parser.add_argument('--audio-codec',default='',help='audio codec')
-parser.add_argument('--audio-encoder', default='',help='audio encoder')
+parser.add_argument('--audio-codec',default='aac',help='audio codec')
+parser.add_argument('--audio-encoder', default='OMX.google.aac.encoder',help='audio encoder')
 parser.add_argument('--audio-source', default='output',choices=['output','mic'],help='audio source')
 parser.add_argument('--require-audio',action='store_false',help='requires audio to work')
 parser.add_argument('--no-audio-playback',action='store_true',help='disable audio on pc')
@@ -89,7 +89,8 @@ if wait_for_device:
 	libscrrec.wait_for_device()
 if wait_for_package:
 	debug.debug('waiting for package:',wait_for_package)
-	libscrrec.wait_for_package_activity(wait_for_package)
+	if not libscrrec.wait_for_package_activity(wait_for_package):
+		exit()
 
 debug.debug('getting activity package name')
 pkg_name=libscrrec.get_current_activity_package_name()
