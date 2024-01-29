@@ -1,6 +1,11 @@
 bt_update_info=update info
+ch_audio=audio
 ch_video=video
 ch_playback=playback
 ch_mic=mic
 lb_codec=codec
 lb_encoder=encoder
+lb_source=source
+lb_item=item
+status_updating_info=updating information...
+status_updated_info=information update sucessfuly!

@@ -52,7 +52,6 @@ if args.list_encoders:
 		for k,v in codecs.items():
 			print(f"{k}:",' '.join(v))
 		print('')
-
 	exit()
 
 wait_for_device=args.wait_for_device

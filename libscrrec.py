@@ -56,10 +56,15 @@ def start_record(command: str):
     except KeyboardInterrupt:
         return 2
     return 3
+def is_device_connected():
+    proc = subprocess.run(('adb shell ls',),shell=True,stdout=subprocess.DEVNULL)
+    return proc.returncode==0
 
 def get_encoder_list():
+    if not is_device_connected():
+        raise ValueError('device is not connected!')
     data=[i.strip() for i in os.popen('scrcpy --list-encoders').read().splitlines()]
-    vidx=data.index('[server] INFO: List of video encoders:')
+    vidx=data.index('[server] INFO: List of video encoders:')   
     aidx=data.index('[server] INFO: List of audio encoders:')
     video_codecs=data[vidx+1:aidx]
     audio_codecs=data[aidx+1:]
@@ -103,3 +108,16 @@ def wait_for_package_activity(package: str):
         except KeyboardInterrupt:
             return False
     return True
+
+def get_displays():
+    proc = os.popen(('scrcpy --list-displays')).read().strip().splitlines()
+    start=proc.index('[server] INFO: List of displays:')
+    proc=proc[start:]
+    proc=[i.strip() for i in proc if '--display-id' in i]
+    new=[]
+    for i in proc:
+        _id,res = i.split()
+        _id=_id.split('=')[1]
+        res=res[1:-1].split('x')
+        new.append((_id,res))
+    return new
