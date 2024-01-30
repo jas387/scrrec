@@ -109,15 +109,32 @@ def wait_for_package_activity(package: str):
             return False
     return True
 
+
+
 def get_displays():
     proc = os.popen(('scrcpy --list-displays')).read().strip().splitlines()
     start=proc.index('[server] INFO: List of displays:')
     proc=proc[start:]
-    proc=[i.strip() for i in proc if '--display-id' in i]
+    proc=[i.strip() for i in proc if '--display-id=' in i]
     new=[]
     for i in proc:
         _id,res = i.split()
         _id=_id.split('=')[1]
-        res=res[1:-1].split('x')
+        res=res[1:-1]#.split('x')
         new.append((_id,res))
+    return new
+
+def get_cameras():
+    proc = os.popen(('scrcpy --list-cameras')).read().strip().splitlines()
+    start=proc.index('[server] INFO: List of cameras:')
+    proc=proc[start:]
+    proc=[i.strip() for i in proc if '--camera-id=' in i]
+    new=[]
+    for i in proc:
+        _id,res = i.split(' (')
+        _id=_id.split('=')[1].strip()
+        name,res,fps=res[:-1].split(', ', 2)
+        fps=fps[5:-1].split(', ')
+        for f in fps:
+            new.append((_id,name,res,f))
     return new
