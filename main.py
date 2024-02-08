@@ -1,3 +1,6 @@
+import os
+import subprocess
+import asyncio
 import flet
 import libscrrec
 
@@ -9,10 +12,11 @@ class App:
 		self._dict = None
 		self._displays = []
 		self._cameras = []
-		self._playbacks = ('playback',)
+		self._playbacks = ('output',)
 		self._mics = ('mic',)
 		self._video_sources = ('display','camera')
-		self._audio_sources = ('playback','mic')
+		self._audio_sources = ('output','mic')
+		self._record_process = None # subprocessing.Popen - None if not recording
 
 	def target(self, page: flet.Page):
 		self.page = page
@@ -24,6 +28,7 @@ class App:
 		self.video_playback = flet.Checkbox(label='video playback', value=False)
 		self.audio = flet.Checkbox(label='audio', value=True)
 		self.audio_playback = flet.Checkbox(label='audio playback', value=True)
+		self.control = flet.Checkbox(label='control', value=False)
 
 		# sessions
 		self.video_callback = SessionCallback(self.on_video_source,self.on_video_source_id,self.on_video_codec,self.on_video_encoder)
@@ -36,15 +41,20 @@ class App:
 		self.start_record = flet.ElevatedButton(text='start',disabled=True,on_click=self._start_record,expand=True)
 
 		#
-		home_view = flet.Column(alignment=flet.MainAxisAlignment.START,horizontal_alignment=flet.CrossAxisAlignment.CENTER,controls=[
+		self.home_view = flet.Column(alignment=flet.MainAxisAlignment.START,horizontal_alignment=flet.CrossAxisAlignment.CENTER,controls=[
 			flet.Row(controls=[self.get_device_info]),
-			flet.Row(controls=[self.video,self.video_playback,self.audio,self.audio_playback],alignment=flet.MainAxisAlignment.CENTER),
-			self.video_session, self.audio_session,flet.Row([self.start_record])
+			flet.Row(controls=[self.video,self.video_playback,self.audio,self.audio_playback,self.control],alignment=flet.MainAxisAlignment.CENTER),
+			self.video_session
 
 		])
-		page.add(home_view)
+		page.add(self.home_view)
+		page.add(self.audio_session,flet.Row([self.start_record]))
+		self.status_bar = flet.TextField(read_only=True,expand=True,disabled=False,autofocus=True,multiline=True,min_lines=20)
+		page.add(flet.SafeArea(expand=True,content=self.status_bar))
 
 	def _get_device_info(self, event):
+		self.get_device_info.disabled = True
+		self.get_device_info.update()
 		_dict = libscrrec.get_encoder_list()
 		self._dict = _dict  # never get this button 
 		self._displays = tuple(map(lambda x: ' '.join(x),libscrrec.get_displays()))
@@ -52,11 +62,15 @@ class App:
 		self._playbacks = ('playback',)
 		self._mics = ('mic',)
 		self._update_info()
+		self.get_device_info.disabled = False
+		self.get_device_info.update()
 	
 	def _update_info(self):
 		self._update_video_session()
-		self._update_audio_session()		
+		self._update_audio_session()	
 		self.page.update()
+		self.start_record.disabled = False
+		self.start_record.update()	
 
 	def _update_video_session(self):
 		self.video_session.clear()
@@ -130,7 +144,7 @@ class App:
 		source_id = self.audio_session.source_id
 		self.audio_session.clear_source_id()
 		func = None
-		if source.value == 'playback':
+		if source.value == 'output':
 			func = self._playbacks
 			self.audio_session.add_codec(libscrrec.get_codecs(self._dict, 'audio'))
 			self.audio_session.add_encoder(libscrrec.get_encoders(self._dict, 'audio'))
@@ -160,8 +174,105 @@ class App:
 		pass
 
 	def _start_record(self, event):
-		pass
-	
+		if self._record_process is None:
+			self.start_record.text = 'stop'
+			self.start_record.update()
+			self.home_view.disabled = True
+			self.home_view.update()
+
+			video_source = self.video_session.source.value
+			video_ident = self.video_session.source_id.value
+			video_codec = self.video_session.codec.value
+			video_encoder = self.video_session.encoder.value
+			audio_source = self.audio_session.source.value
+			audio_ident = self.audio_session.source_id.value
+			audio_codec = self.audio_session.codec.value
+			audio_encoder = self.audio_session.encoder.value
+			record_video = self.video.value
+			record_audio = self.audio.value
+			playback_video = self.video_playback.value
+			playback_audio = self.audio_playback.value
+			control = self.control.value
+			def on_record_start():
+				while self._record_process!=None:
+					stdout, stderr = self._record_process.stdout, self._record_process.stderr
+					self.status_bar.value += f'DEBUG: {stdout}\n'
+					self.status_bar.value += f'ERROR: {stderr}\n\n'
+					self.status_bar.update()
+					self.page.update()
+					if isinstance(self._record_process,subprocess.CompletedProcess):
+						self._record_process = None
+						self.start_record.text = 'start'
+						self.start_record.update()
+						self.home_view.disabled = False
+						self.home_view.update()
+						break
+
+			cmd = self.craft_record_command(video_source, video_codec, video_encoder, video_ident, audio_source, audio_codec, audio_encoder, audio_ident, record_video, record_audio, playback_audio, playback_video, control)
+			self._record_process = subprocess.run((cmd,), shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+			on_record_start()
+
+		else:
+			self.start_record.text = 'start'
+			self.start_record.update()
+			self.home_view.disabled = False
+			self.home_view.update()
+			self._record_process.kill()
+			self._record_process = None		
+
+
+	def craft_record_command(self, video_source, video_codec, video_encoder, video_ident, 
+		audio_source, audio_codec, audio_encoder, audio_ident, record_video, record_audio, 
+		playback_audio, playback_video, control):
+		cmd='scrcpy '
+		# source video
+		if record_video:
+			if video_source!='':
+				cmd+=f'--video-source="{video_source}" '
+				if video_source=='display':
+					if video_ident!='':
+						_id,res=video_ident.split()
+						cmd+=f'--display-id="{_id}" '
+				elif video_source=='camera':
+					if video_ident!='':
+						_id,name,res,fps=video_ident.split()
+						cmd+=f'--camera-id="{_id}" --camera-fps="{fps}" --camera-size="{res}" '
+			else:
+				cmd+='--video-source="display" '
+			if video_codec!='':
+				cmd+=f'--video-codec="{video_codec}" '
+			if video_encoder!='':
+				cmd+=f'--video-encoder="{video_encoder}" '
+			if not playback_video:
+				cmd+=f'--no-video-playback '
+		else:
+			cmd+=f'--no-video '
+		# audio
+		if record_audio:
+			cmd+=f'--require-audio '
+			if audio_source!='':
+				cmd+=f'--audio-source="{audio_source}" '
+			else:
+				cmd+=f'--audio-source="output" '
+			# codec
+			if audio_codec!='':
+				cmd+=f'--audio-codec="{audio_codec}" '
+			# encoder
+			if audio_encoder!='':
+				cmd+=f'--audio-encoder="{audio_encoder}" '
+			if not playback_audio:
+				cmd+=f'--no-audio-playback '
+		else:
+			cmd+=f'--no-audio '
+		if not control:
+			cmd+=f'--no-control '
+		# record
+		if record_video or record_audio:
+			pkg = libscrrec.get_current_activity_package_name()
+			folder=os.path.expanduser("~/Videos")
+			filename=libscrrec.get_record_filename(pkg,folder)
+			cmd+=f'--record="{folder}/{filename}" '
+		return cmd
 
 class SessionCallback:
 	def __init__(self, source, source_id, codec, encoder):
@@ -256,5 +367,5 @@ class Session(flet.UserControl):
 
 
 if __name__=='__main__':
-	app = App(width=1024,height=600)
+	app = App(width=1280,height=480)
 	flet.app(app.target)
