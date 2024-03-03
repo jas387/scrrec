@@ -27,9 +27,19 @@ def get_current_activity_package_name():
             return name
     return None
 def get_record_filename(package_name:str, path: str='~/Videos'):
-    sufix_datetime =datetime.now().strftime("_%Y%d%m_%H%M%S.mkv")
-    name = package_name+sufix_datetime
+    sufix_datetime =datetime.now().strftime("_%Y%d%m_%H%M%S")
+    # filename count
+    count = len([name for name in os.listdir(path) if name.startswith(package_name+'_part_')])
+    part_name=f'_part_{count:05d}_'
+    name = package_name+part_name+sufix_datetime
     return f'{name}'
+
+def get_record_file_ext(video_codec,audio_codec):
+    if video_codec=='h264' and audio_codec in ['m4a','aac']:
+        return 'mp4'
+    elif video_codec=='webm' and audio_codec in ['webm','opus']:
+        return 'webm'
+    return 'mkv'
 
 def set_record(path:str,filename:str, require_audio=True,no_audio_playback=False,no_video_playback=True,no_control=True,
     video_codec='h264',video_encoder='OMX.MTK.VIDEO.ENCODER.AVC',

@@ -1,4 +1,6 @@
 import os
+import signal
+import threading
 import subprocess
 import asyncio
 import flet
@@ -17,6 +19,7 @@ class App:
 		self._video_sources = ('display','camera')
 		self._audio_sources = ('output','mic')
 		self._record_process = None # subprocessing.Popen - None if not recording
+		self._is_recording = False
 
 	def target(self, page: flet.Page):
 		self.page = page
@@ -31,8 +34,8 @@ class App:
 		self.control = flet.Checkbox(label='control', value=False)
 
 		# sessions
-		self.video_callback = SessionCallback(self.on_video_source,self.on_video_source_id,self.on_video_codec,self.on_video_encoder)
-		self.audio_callback = SessionCallback(self.on_audio_source,self.on_audio_source_id,self.on_audio_codec,self.on_audio_encoder)
+		self.video_callback = SessionCallback(self.on_video_source,self.on_video_source_id,self.on_video_codec,self.on_video_encoder,self.on_video_codec_options)
+		self.audio_callback = SessionCallback(self.on_audio_source,self.on_audio_source_id,self.on_audio_codec,self.on_audio_encoder,self.on_audio_codec_options)
 
 		self.video_session = Session(self.video_callback,'video','red',)
 		self.audio_session = Session(self.audio_callback,'audio','green')
@@ -137,7 +140,9 @@ class App:
 	
 	def on_video_encoder(self, *w, **kw):
 		pass
-	
+	def on_video_codec_options(self, *w, **kw):
+		pass
+
 	# audio
 	def on_audio_source(self, *w, **kw):
 		source = self.audio_session.source
@@ -173,8 +178,13 @@ class App:
 	def on_audio_encoder(self, *w, **kw):
 		pass
 
+	def on_audio_codec_options(self, *w, **kw):
+		pass
+	
+
 	def _start_record(self, event):
-		if self._record_process is None:
+		print('process:',self._record_process)
+		if not self._is_recording:
 			self.start_record.text = 'stop'
 			self.start_record.update()
 			self.home_view.disabled = True
@@ -184,46 +194,63 @@ class App:
 			video_ident = self.video_session.source_id.value
 			video_codec = self.video_session.codec.value
 			video_encoder = self.video_session.encoder.value
+			video_codec_options = self.video_session.codec_options.value
+
 			audio_source = self.audio_session.source.value
 			audio_ident = self.audio_session.source_id.value
 			audio_codec = self.audio_session.codec.value
 			audio_encoder = self.audio_session.encoder.value
+			audio_codec_options = self.audio_session.codec_options.value
+			
+
 			record_video = self.video.value
 			record_audio = self.audio.value
 			playback_video = self.video_playback.value
 			playback_audio = self.audio_playback.value
 			control = self.control.value
-			def on_record_start():
+
+			def on_record_start(*w, **kw):	
 				while self._record_process!=None:
 					stdout, stderr = self._record_process.stdout, self._record_process.stderr
+					stdout = stdout.read()
+					stderr = stderr.read()
 					self.status_bar.value += f'DEBUG: {stdout}\n'
 					self.status_bar.value += f'ERROR: {stderr}\n\n'
 					self.status_bar.update()
 					self.page.update()
-					if isinstance(self._record_process,subprocess.CompletedProcess):
+					if isinstance(self._record_process,subprocess.CompletedProcess) or self._record_process is None:
 						self._record_process = None
 						self.start_record.text = 'start'
 						self.start_record.update()
 						self.home_view.disabled = False
 						self.home_view.update()
 						break
+					else:
+						self._record_process.communicate()
+			self._is_recording = True
+			cmd = self.craft_record_command(video_source, video_codec, video_encoder, video_ident, video_codec_options, audio_source, audio_codec, audio_encoder, audio_ident, audio_codec_options, record_video, record_audio, playback_audio, playback_video, control)
+			print('cmd:',cmd)
+			self._record_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE,preexec_fn=os.setsid)
+			td = threading.Thread(target=on_record_start)
+			td.start()
 
-			cmd = self.craft_record_command(video_source, video_codec, video_encoder, video_ident, audio_source, audio_codec, audio_encoder, audio_ident, record_video, record_audio, playback_audio, playback_video, control)
-			self._record_process = subprocess.run((cmd,), shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-			on_record_start()
 
 		else:
+			print('killing process')
+			self._is_recording = False
 			self.start_record.text = 'start'
 			self.start_record.update()
 			self.home_view.disabled = False
 			self.home_view.update()
+			#os.killpg(os.getpgid(self._record_process.pid), signal.SIGTERM)
 			self._record_process.kill()
-			self._record_process = None		
+			self._record_process = None
+			os.system('killall scrcpy')		
 
 
-	def craft_record_command(self, video_source, video_codec, video_encoder, video_ident, 
-		audio_source, audio_codec, audio_encoder, audio_ident, record_video, record_audio, 
-		playback_audio, playback_video, control):
+	def craft_record_command(self, video_source, video_codec, video_encoder, video_ident, video_codec_options, 
+		audio_source, audio_codec, audio_encoder, audio_ident, audio_codec_options,
+		record_video, record_audio, playback_audio, playback_video, control):
 		cmd='scrcpy '
 		# source video
 		if record_video:
@@ -237,6 +264,8 @@ class App:
 					if video_ident!='':
 						_id,name,res,fps=video_ident.split()
 						cmd+=f'--camera-id="{_id}" --camera-fps="{fps}" --camera-size="{res}" '
+				if video_codec_options!='':
+					cmd+=f'--video-codec-options="{video_codec_options}" '
 			else:
 				cmd+='--video-source="display" '
 			if video_codec!='':
@@ -262,6 +291,9 @@ class App:
 				cmd+=f'--audio-encoder="{audio_encoder}" '
 			if not playback_audio:
 				cmd+=f'--no-audio-playback '
+
+			if audio_codec_options!='':
+				cmd+=f'--audio-codec-options="{audio_codec_options}" '
 		else:
 			cmd+=f'--no-audio '
 		if not control:
@@ -270,16 +302,20 @@ class App:
 		if record_video or record_audio:
 			pkg = libscrrec.get_current_activity_package_name()
 			folder=os.path.expanduser("~/Videos")
+			if not os.path.isdir(folder):
+				os.mkdir(folder)
 			filename=libscrrec.get_record_filename(pkg,folder)
-			cmd+=f'--record="{folder}/{filename}" '
+			file_ext=libscrrec.get_record_file_ext(video_codec,audio_codec)
+			cmd+=f'--record="{folder}/{filename}.{file_ext}" '
 		return cmd
 
 class SessionCallback:
-	def __init__(self, source, source_id, codec, encoder):
+	def __init__(self, source, source_id, codec, encoder,codec_options):
 		self.source = source
 		self.source_id = source_id
 		self.codec = codec
 		self.encoder = encoder
+		self.codec_options = codec_options
 
 	def _source(self, *w, **kw):
 		self.source(*w, **kw)
@@ -293,6 +329,9 @@ class SessionCallback:
 	def _encoder(self, *w, **kw):
 		self.encoder(*w, **kw)
 
+	def _codec_options(self, *w, **kw):
+		self.codec_options(*w, **kw)
+
 
 class Session(flet.UserControl):
 	def __init__(self, callback: SessionCallback, title:str, color: str, *w, sources=[], sources_ids=[],
@@ -304,6 +343,8 @@ class Session(flet.UserControl):
 		self.source_id = flet.Dropdown(label='id',expand=True,on_change=callback.source_id)
 		self.codec = flet.Dropdown(label='codec', expand=True,on_change=callback.codec)
 		self.encoder = flet.Dropdown(label='encoder',expand=True,on_change=callback.encoder)
+		self.codec_options = flet.TextField(label=f'{title} codec options (key:type=value),... type=int|long|float|string',on_change=callback.codec_options)
+
 		if len(sources)>0:
 			self.add_source(sources)
 		if len(sources_ids)>0:
@@ -362,10 +403,11 @@ class Session(flet.UserControl):
 	def build(self):
 		return flet.Column(controls=[
 			flet.Text(self._title,color=self._color),
-			flet.Row(controls=[self.source, self.source_id, self.codec,self.encoder],alignment=flet.MainAxisAlignment.CENTER,vertical_alignment=flet.CrossAxisAlignment.START)
+			flet.Row(controls=[self.source, self.source_id, self.codec,self.encoder],alignment=flet.MainAxisAlignment.CENTER,vertical_alignment=flet.CrossAxisAlignment.START),
+			self.codec_options
 		], horizontal_alignment=flet.CrossAxisAlignment.CENTER,alignment=flet.MainAxisAlignment.START)
 
 
 if __name__=='__main__':
-	app = App(width=1280,height=480)
+	app = App()#width=1280,height=480)
 	flet.app(app.target)
