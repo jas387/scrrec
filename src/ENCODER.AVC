@@ -1,0 +1,23 @@
+scrcpy 2.4 <https://github.com/Genymobile/scrcpy>
+[36m[DEBUG]: debug mode: True[0m
+[36m[DEBUG]: wait_for_device: True[0m
+[36m[DEBUG]: wait_for_package: None[0m
+[36m[DEBUG]: path: /home/sphynx/Videos[0m
+[36m[DEBUG]: filename: None[0m
+[36m[DEBUG]: video_codec: h264[0m
+[36m[DEBUG]: video_encoder: OMX.MTK.VIDEO[0m
+[36m[DEBUG]: no_video_playback: True[0m
+[36m[DEBUG]: audio_codec: aac[0m
+[36m[DEBUG]: audio_encoder: OMX.google.aac.encoder[0m
+[36m[DEBUG]: require_audio: False[0m
+[36m[DEBUG]: no_audio_playback: False[0m
+[36m[DEBUG]: no_control: True[0m
+[36m[DEBUG]: waiting for device connect...[0m
+[36m[DEBUG]: getting activity package name[0m
+[36m[DEBUG]: activity package name: com.sec.android.app.launcher.activities.LauncherActivity[0m
+[36m[DEBUG]: generating filename for record[0m
+[36m[DEBUG]: record filename: com.sec.android.app.launcher.activities.LauncherActivity_part_00000__20241504_093555[0m
+[36m[DEBUG]: creating record command...[0m
+[36m[DEBUG]: scrcpy   --no-video-playback --no-control     --video-codec="h264" --video-codec="OMX.MTK.VIDEO"     --audio-codec="aac" --audio-codec="OMX.google.aac.encoder" --record="/home/sphynx/Videos/com.sec.android.app.launcher.activities.LauncherActivity_part_00000__20241504_093555" [0m
+[36m[DEBUG]: starting record...[0m
+[31m[ERROR]: exit code: 1[0m
